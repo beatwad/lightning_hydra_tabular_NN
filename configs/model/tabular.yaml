@@ -1,0 +1,29 @@
+_target_: src.models.tabular_module.TabularModule
+
+model:
+  _target_: src.models.components.fc_net.FCNet
+  data_config: ${model.data_config} 
+  fc_dims: 
+    - 2048
+    - 1024
+    - 1024
+    - 256
+
+optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.001
+  weight_decay: 0.0
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  _partial_: true
+  mode: min
+  factor: 0.1
+  patience: 10
+
+# dataset configuration data
+data_config: None
+
+# compile model for faster training with pytorch 2.0
+compile: false
