@@ -40,9 +40,16 @@ class TabularModule(L.LightningModule):
         self.criterion = nn.CrossEntropyLoss()
         
         # metric objects for calculating and averaging accuracy across batches
-        self.train_acc = Accuracy()
-        self.val_acc = Accuracy()
-        self.test_acc = Accuracy()
+        self.train_acc = Accuracy(task='binary')
+        self.val_acc = Accuracy(task='binary')
+        self.test_acc = Accuracy(task='binary')
+
+        # the default dtype for Accuracy metric states is torch.long and 
+        # there is a problem between torch.distributed.all_gather and torch.long on CUDA
+        # that leads to crush and strings below fix this
+        for attr, default in self.train_acc._defaults.items():
+            current_val = getattr(self.train_acc, attr)
+            setattr(self.train_acc, attr, default.to(current_val.device))
 
         # for averaging loss across batches
         self.train_loss = MeanMetric()

@@ -2,4 +2,4 @@ _target_: src.data.tabular_datamodule.TabularDataModule
 load_dir: '${paths.data_dir}signal_stat'
 val_size: 0.2
 batch_size: 32
-num_workers: 4
+num_workers: 7
