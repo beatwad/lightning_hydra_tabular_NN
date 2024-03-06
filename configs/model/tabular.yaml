@@ -2,8 +2,8 @@ _target_: src.models.tabular_module.TabularModule
 
 model:
   _target_: src.models.components.fc_net.FCNet
-  data_config: ${model.data_config} 
-  fc_dims: 
+  data_config: ${model.data_config}
+  fc_dims:
     - 2048
     - 1024
     - 1024

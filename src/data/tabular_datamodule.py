@@ -1,46 +1,46 @@
-import torch
-from torch.utils.data import DataLoader
-import lightning as L
+import os
 
+import lightning as L
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+import torch
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import DataLoader
 
 from src.data.components.tabular_dataset import TabularDataset
 from src.models.components.fc_net import FCNet
 
-import os
 print(os.getcwd())
 
 # constants
 VAL_SIZE = 0.2
 BATCH_SIZE = 32
 NUM_WORKERS = 4
-LOAD_DIR = 'data/signal_stat'
-
+LOAD_DIR = "data/signal_stat"
 
 
 class TabularDataModule(L.LightningDataModule):
-    """ LightningDataModule for tabular data processing and storing 
-        Parameters
-        ----------
-        batch_size
-            Number of examples to operate on per forward step.
-        val_size
-            Validation data ratio in train / validation split.
-        num_workers
-            Number of additional processes to load data.
-        load_dir
-            Directory from which data will be loaded.
+    """LightningDataModule for tabular data processing and storing.
+
+    Parameters
+    ----------
+    batch_size
+        Number of examples to operate on per forward step.
+    val_size
+        Validation data ratio in train / validation split.
+    num_workers
+        Number of additional processes to load data.
+    load_dir
+        Directory from which data will be loaded.
     """
 
-    def __init__(self, 
-                 batch_size: int = 32,
-                 val_size: float = 0.2,
-                 load_dir: str = '',
-                 num_workers: int = 4,
-                 ) -> None:
-        
+    def __init__(
+        self,
+        batch_size: int = 32,
+        val_size: float = 0.2,
+        load_dir: str = "",
+        num_workers: int = 4,
+    ) -> None:
         super().__init__()
 
         # this line allows to access init params with 'self.hparams' attribute
@@ -53,8 +53,8 @@ class TabularDataModule(L.LightningDataModule):
         self.load_dir = load_dir
 
         self.input_shape = None
-        self.output_dims = (1, )
-        self.mapping = ['0', '1']
+        self.output_dims = (1,)
+        self.mapping = ["0", "1"]
 
         # prepare and split data
         self.setup()
@@ -67,21 +67,23 @@ class TabularDataModule(L.LightningDataModule):
             "input_shape": self.input_shape,
             "output_dims": self.output_dims,
             "mapping": self.mapping,
-            "batch_size": self.batch_size
-            }
+            "batch_size": self.batch_size,
+        }
 
     def setup(self, stage=None) -> None:
         """Perform final setup to prepare data for consumption by DataLoader.
-        Here is where we typically split into train, validation, and test. This is done once per GPU in a DDP setting.
-        Should assign `torch Dataset` objects to self.data_train, self.data_val, and optionally self.data_test.
+
+        Here is where we typically split into train, validation, and test. This is done once per
+        GPU in a DDP setting. Should assign `torch Dataset` objects to self.data_train,
+        self.data_val, and optionally self.data_test.
         """
         # load data
-        df_buy = pd.read_pickle(f'{self.load_dir}/train_buy.pkl')
-        df_sell = pd.read_pickle(f'{self.load_dir}/train_sell.pkl')
+        df_buy = pd.read_pickle(f"{self.load_dir}/train_buy.pkl")
+        df_sell = pd.read_pickle(f"{self.load_dir}/train_sell.pkl")
         df = pd.concat([df_buy, df_sell])
-        df = df.sort_values('time').reset_index(drop=True)
-        X = df.drop(columns=['time', 'ticker', 'pattern', 'ttype'])
-        y = df['target']
+        df = df.sort_values("time").reset_index(drop=True)
+        X = df.drop(columns=["time", "ticker", "pattern", "ttype"])
+        y = df["target"]
 
         # split data
         X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=self.val_size)

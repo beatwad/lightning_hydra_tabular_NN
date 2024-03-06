@@ -1,21 +1,23 @@
 from typing import Any, Dict, Tuple
 
+import lightning as L
 import torch
 from torch import nn
-from torchmetrics import Accuracy, MeanMetric, MaxMetric
-import lightning as L
+from torchmetrics import Accuracy, MaxMetric, MeanMetric
+
 
 # define the LightningModule
 class TabularModule(L.LightningModule):
     def __init__(
-            self, 
-            model: torch.nn.Module,
-            optimizer: torch.optim.Optimizer,
-            scheduler: torch.optim.lr_scheduler,
-            compile: bool,
-            data_config: dict, 
-                ) -> None:
-        """ Initialize a `TabularModule` for tabular data
+        self,
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        scheduler: torch.optim.lr_scheduler,
+        compile: bool,
+        data_config: dict,
+    ) -> None:
+        """Initialize a `TabularModule` for tabular data.
+
         Parameters
         ----------
         data_config
@@ -28,23 +30,23 @@ class TabularModule(L.LightningModule):
         # this line allows to access init params with 'self.hparams' attribute
         # also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False)
-        
+
         # params
-        batch_size = data_config['batch_size']
-        
+        batch_size = data_config["batch_size"]
+
         # model
         self.model = model
         input_width = self.model.input_width
-        
+
         # loss function
         self.criterion = nn.CrossEntropyLoss()
-        
-        # metric objects for calculating and averaging accuracy across batches
-        self.train_acc = Accuracy(task='binary')
-        self.val_acc = Accuracy(task='binary')
-        self.test_acc = Accuracy(task='binary')
 
-        # the default dtype for Accuracy metric states is torch.long and 
+        # metric objects for calculating and averaging accuracy across batches
+        self.train_acc = Accuracy(task="binary")
+        self.val_acc = Accuracy(task="binary")
+        self.test_acc = Accuracy(task="binary")
+
+        # the default dtype for Accuracy metric states is torch.long and
         # there is a problem between torch.distributed.all_gather and torch.long on CUDA
         # that leads to crush and strings below fix this
         for attr, default in self.train_acc._defaults.items():
@@ -58,10 +60,10 @@ class TabularModule(L.LightningModule):
 
         # for tracking best so far validation accuracy
         self.val_acc_best = MaxMetric()
-        
+
         # use this to show input dimensions of the models
         self.example_input_array = torch.Tensor(batch_size, input_width)
-        
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Perform a forward pass through the model `self.model`.
 
@@ -69,7 +71,7 @@ class TabularModule(L.LightningModule):
         :return: A tensor of logits.
         """
         return self.model(x)
-    
+
     def on_train_start(self) -> None:
         """Lightning hook that is called when training begins."""
         # by default lightning executes validation step sanity checks before training starts,
@@ -77,11 +79,10 @@ class TabularModule(L.LightningModule):
         self.val_loss.reset()
         self.val_acc.reset()
         self.val_acc_best.reset()
-    
+
     def model_step(
-        self, 
-        batch: Tuple[torch.Tensor, torch.Tensor]
-        ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        self, batch: Tuple[torch.Tensor, torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Perform a single model step on a batch of data.
 
         :param batch: A batch of data (a tuple) containing the input tensor of images and target labels.
@@ -97,12 +98,10 @@ class TabularModule(L.LightningModule):
         loss = self.criterion(logits, y)
         preds = torch.argmax(logits, dim=1)
         return loss, preds, y
-    
+
     def training_step(
-        self, 
-        batch: Tuple[torch.Tensor, torch.Tensor], 
-        batch_idx: int
-        ) -> torch.Tensor:
+        self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         """Perform a single training step on a batch of data from the training set.
 
         :param batch: A batch of data (a tuple) containing the input tensor of images and target
@@ -120,16 +119,12 @@ class TabularModule(L.LightningModule):
 
         # return loss or backpropagation will fail
         return loss
-    
+
     def on_train_epoch_end(self) -> None:
         "Lightning hook that is called when a training epoch ends."
         pass
-    
-    def validation_step(
-            self,       
-            batch: Tuple[torch.Tensor, torch.Tensor], 
-            batch_idx: int
-            ) -> None:
+
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         """Perform a single validation step on a batch of data from the validation set.
 
         :param batch: A batch of data (a tuple) containing the input tensor of images and target
@@ -152,11 +147,7 @@ class TabularModule(L.LightningModule):
         # otherwise metric would be reset by lightning after each epoch
         self.log("val/acc_best", self.val_acc_best.compute(), sync_dist=True, prog_bar=True)
 
-    def test_step(
-            self, 
-            batch: Tuple[torch.Tensor, torch.Tensor], 
-            batch_idx: int
-            ) -> None:
+    def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         """Perform a single test step on a batch of data from the test set.
 
         :param batch: A batch of data (a tuple) containing the input tensor of images and target
@@ -174,7 +165,7 @@ class TabularModule(L.LightningModule):
     def on_test_epoch_end(self) -> None:
         """Lightning hook that is called when a test epoch ends."""
         pass
-    
+
     def configure_optimizers(self) -> Dict[str, Any]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
         Normally you'd need one. But in the case of GANs or similar you might have multiple.

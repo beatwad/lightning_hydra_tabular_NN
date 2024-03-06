@@ -1,25 +1,29 @@
+from argparse import Namespace
+from collections import OrderedDict
+
+import numpy as np
 import torch
 from torch import nn
-import numpy as np
-from collections import OrderedDict
-from argparse import Namespace
+
 
 # define NN
 class FCNet(nn.Module):
-    """ Pytorch model
-        Parameters
-        ----------
-        data_config
-            LightningDataModule configuration parameters.
-        fc_dims
-            List of layers dimensions.
-        """
+    """Pytorch model.
+
+    Parameters
+    ----------
+    data_config
+        LightningDataModule configuration parameters.
+    fc_dims
+        List of layers dimensions.
+    """
+
     def __init__(self, data_config: dict, fc_dims: list) -> None:
         super().__init__()
         self.data_config = data_config
         self.input_width = int(np.prod(self.data_config["input_shape"][1:]))
         num_classes = len(self.data_config["mapping"])
-        
+
         self.fc_dims = fc_dims
         num_layers = len(self.fc_dims)
         self.fc_dims = [self.input_width] + self.fc_dims
@@ -27,10 +31,15 @@ class FCNet(nn.Module):
         self.layers = list()
 
         for i in range(num_layers):
-            layer = nn.Sequential(OrderedDict([
-                (f'fc{i+1}', torch.nn.Linear(self.fc_dims[i], self.fc_dims[i+1])),
-                ('relu', nn.ReLU()),
-                (f'bn{i+1}', torch.nn.BatchNorm1d(self.fc_dims[i+1]))]))
+            layer = nn.Sequential(
+                OrderedDict(
+                    [
+                        (f"fc{i+1}", torch.nn.Linear(self.fc_dims[i], self.fc_dims[i + 1])),
+                        ("relu", nn.ReLU()),
+                        (f"bn{i+1}", torch.nn.BatchNorm1d(self.fc_dims[i + 1])),
+                    ]
+                )
+            )
             self.layers.append(layer)
 
         self.layers = nn.ModuleList(self.layers)
