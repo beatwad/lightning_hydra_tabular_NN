@@ -40,21 +40,13 @@ class TabularModule(L.LightningModule):
 
         # loss function
         self.criterion = nn.CrossEntropyLoss()
-        self.pred = nn.Softmax(dim=1)
 
         # metric objects for calculating and averaging AP across batches
-        self.train_metric = Accuracy(task="binary")
-        self.val_metric = Accuracy(task="binary")
-        self.test_metric = Accuracy(task="binary")
+        self.train_metric = AveragePrecision(task="binary")
+        self.val_metric = AveragePrecision(task="binary")
+        self.test_metric = AveragePrecision(task="binary")
 
-        # the default dtype for Accuracy metric states is torch.long and
-        # there is a problem between torch.distributed.all_gather and torch.long on CUDA
-        # that leads to crush and strings below fix this
-        for attr, default in self.train_metric._defaults.items():
-            current_val = getattr(self.train_metric, attr)
-            setattr(self.train_metric, attr, default.to(current_val.device))
-
-        # for averaging loss across batches
+        # for averaging loss across batchess
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
         self.test_loss = MeanMetric()
@@ -98,8 +90,7 @@ class TabularModule(L.LightningModule):
         logits = self.forward(x)
         loss = self.criterion(logits, y)
         preds = torch.argmax(logits, dim=1)
-        # preds = self.pred(logits)
-        return loss, preds, y
+        return loss, preds, logits, y
 
     def training_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
@@ -111,11 +102,14 @@ class TabularModule(L.LightningModule):
         :param batch_idx: The index of the current batch.
         :return: A tensor of losses between model predictions and targets.
         """
-        loss, preds, targets = self.model_step(batch)
+        loss, preds, logits, targets = self.model_step(batch)
+        # softmax should be here, if it's placed to __init__() - CUDA error occurs (don't know why)
+        softmax = nn.Softmax(dim=1)
+        probs = softmax(logits)[:, 1]
 
         # update and log metrics
         self.train_loss(loss)
-        self.train_metric(preds, targets)
+        self.train_metric(probs, targets)
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train/ap", self.train_metric, on_step=False, on_epoch=True, prog_bar=True)
 
@@ -133,11 +127,13 @@ class TabularModule(L.LightningModule):
             labels.
         :param batch_idx: The index of the current batch.
         """
-        loss, preds, targets = self.model_step(batch)
+        loss, preds, logits, targets = self.model_step(batch)
+        softmax = nn.Softmax(dim=1)
+        probs = softmax(logits)[:, 1]
 
         # update and log metrics
         self.val_loss(loss)
-        self.val_metric(preds, targets)
+        self.val_metric(probs, targets)
         self.log("val/loss", self.val_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val/ap", self.val_metric, on_step=False, on_epoch=True, prog_bar=True)
 
@@ -152,15 +148,17 @@ class TabularModule(L.LightningModule):
     def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         """Perform a single test step on a batch of data from the test set.
 
-        :param batch: A batch of data (a tuple) containing the input tensor of images and target
+        :param batch: A batch of data (a tuple) containing the input tensor of images and targetgit 
             labels.
         :param batch_idx: The index of the current batch.
         """
-        loss, preds, targets = self.model_step(batch)
+        loss, preds, logits, targets = self.model_step(batch)
+        softmax = nn.Softmax(dim=1)
+        probs = softmax(logits)[:, 1]
 
         # update and log metrics
         self.test_loss(loss)
-        self.test_metric(preds, targets)
+        self.test_metric(probs, targets)
         self.log("test/loss", self.test_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("test/ap", self.test_metric, on_step=False, on_epoch=True, prog_bar=True)
 
