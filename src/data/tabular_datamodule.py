@@ -1,5 +1,5 @@
 import os
-
+import json
 import lightning as L
 import pandas as pd
 import torch
@@ -45,7 +45,7 @@ class TabularDataModule(L.LightningDataModule):
 
         # this line allows to access init params with 'self.hparams' attribute
         # also ensures init params will be stored in ckpt
-        self.save_hyperparameters(logger=False)
+        self.save_hyperparameters(logger=False, ignore=["model"])
 
         self.batch_size = batch_size
         self.val_size = val_size
@@ -77,12 +77,16 @@ class TabularDataModule(L.LightningDataModule):
         GPU in a DDP setting. Should assign `torch Dataset` objects to self.data_train,
         self.data_val, and optionally self.data_test.
         """
-        # load data
+        # load feature list and data
+        feature_path = f"{self.load_dir}/features.json"
+        with open(feature_path) as f:
+            feature_dict = json.load(f)
+            features = feature_dict['features']
         df_buy = pd.read_pickle(f"{self.load_dir}/train_buy.pkl")
         df_sell = pd.read_pickle(f"{self.load_dir}/train_sell.pkl")
         df = pd.concat([df_buy, df_sell])
         df = df.sort_values("time").reset_index(drop=True)
-        X = df.drop(columns=["time", "ticker", "pattern", "ttype"])
+        X = df[features]
         y = df["target"]
 
         # split data

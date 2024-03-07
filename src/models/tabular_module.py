@@ -3,7 +3,7 @@ from typing import Any, Dict, Tuple
 import lightning as L
 import torch
 from torch import nn
-from torchmetrics import Accuracy, MaxMetric, MeanMetric
+from torchmetrics import AveragePrecision, Accuracy, MaxMetric, MeanMetric
 
 
 # define the LightningModule
@@ -40,26 +40,27 @@ class TabularModule(L.LightningModule):
 
         # loss function
         self.criterion = nn.CrossEntropyLoss()
+        self.pred = nn.Softmax(dim=1)
 
-        # metric objects for calculating and averaging accuracy across batches
-        self.train_acc = Accuracy(task="binary")
-        self.val_acc = Accuracy(task="binary")
-        self.test_acc = Accuracy(task="binary")
+        # metric objects for calculating and averaging AP across batches
+        self.train_metric = Accuracy(task="binary")
+        self.val_metric = Accuracy(task="binary")
+        self.test_metric = Accuracy(task="binary")
 
         # the default dtype for Accuracy metric states is torch.long and
         # there is a problem between torch.distributed.all_gather and torch.long on CUDA
         # that leads to crush and strings below fix this
-        for attr, default in self.train_acc._defaults.items():
-            current_val = getattr(self.train_acc, attr)
-            setattr(self.train_acc, attr, default.to(current_val.device))
+        for attr, default in self.train_metric._defaults.items():
+            current_val = getattr(self.train_metric, attr)
+            setattr(self.train_metric, attr, default.to(current_val.device))
 
         # for averaging loss across batches
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
         self.test_loss = MeanMetric()
 
-        # for tracking best so far validation accuracy
-        self.val_acc_best = MaxMetric()
+        # for tracking best so far validation AP
+        self.val_metric_best = MaxMetric()
 
         # use this to show input dimensions of the models
         self.example_input_array = torch.Tensor(batch_size, input_width)
@@ -77,8 +78,8 @@ class TabularModule(L.LightningModule):
         # by default lightning executes validation step sanity checks before training starts,
         # so it's worth to make sure validation metrics don't store results from these checks
         self.val_loss.reset()
-        self.val_acc.reset()
-        self.val_acc_best.reset()
+        self.val_metric.reset()
+        self.val_metric_best.reset()
 
     def model_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor]
@@ -97,6 +98,7 @@ class TabularModule(L.LightningModule):
         logits = self.forward(x)
         loss = self.criterion(logits, y)
         preds = torch.argmax(logits, dim=1)
+        # preds = self.pred(logits)
         return loss, preds, y
 
     def training_step(
@@ -113,9 +115,9 @@ class TabularModule(L.LightningModule):
 
         # update and log metrics
         self.train_loss(loss)
-        self.train_acc(preds, targets)
+        self.train_metric(preds, targets)
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("train/acc", self.train_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train/ap", self.train_metric, on_step=False, on_epoch=True, prog_bar=True)
 
         # return loss or backpropagation will fail
         return loss
@@ -135,17 +137,17 @@ class TabularModule(L.LightningModule):
 
         # update and log metrics
         self.val_loss(loss)
-        self.val_acc(preds, targets)
+        self.val_metric(preds, targets)
         self.log("val/loss", self.val_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("val/acc", self.val_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/ap", self.val_metric, on_step=False, on_epoch=True, prog_bar=True)
 
     def on_validation_epoch_end(self) -> None:
         "Lightning hook that is called when a validation epoch ends."
-        acc = self.val_acc.compute()  # get current val acc
-        self.val_acc_best(acc)  # update best so far val acc
-        # log `val_acc_best` as a value through `.compute()` method, instead of as a metric object
+        ap = self.val_metric.compute()  # get current val_metric
+        self.val_metric_best(ap)  # update best so far val_metric
+        # log `val_metric_best` as a value through `.compute()` method, instead of as a metric object
         # otherwise metric would be reset by lightning after each epoch
-        self.log("val/acc_best", self.val_acc_best.compute(), sync_dist=True, prog_bar=True)
+        self.log("val/ap_best", self.val_metric_best.compute(), sync_dist=True, prog_bar=True)
 
     def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         """Perform a single test step on a batch of data from the test set.
@@ -158,9 +160,9 @@ class TabularModule(L.LightningModule):
 
         # update and log metrics
         self.test_loss(loss)
-        self.test_acc(preds, targets)
+        self.test_metric(preds, targets)
         self.log("test/loss", self.test_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("test/acc", self.test_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test/ap", self.test_metric, on_step=False, on_epoch=True, prog_bar=True)
 
     def on_test_epoch_end(self) -> None:
         """Lightning hook that is called when a test epoch ends."""
