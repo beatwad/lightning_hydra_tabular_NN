@@ -46,6 +46,7 @@ def instantiate_loggers(logger_cfg: DictConfig) -> List[Logger]:
         return logger
 
     if not isinstance(logger_cfg, DictConfig):
+        print(logger_cfg)
         raise TypeError("Logger config must be a DictConfig!")
 
     for _, lg_conf in logger_cfg.items():

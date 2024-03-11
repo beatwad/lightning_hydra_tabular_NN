@@ -1,3 +1,4 @@
+import glob
 import warnings
 from importlib.util import find_spec
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -64,6 +65,7 @@ def task_wrapper(task_func: Callable) -> Callable:
 
     def wrap(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         # execute the task
+        
         try:
             metric_dict, object_dict = task_func(cfg=cfg)
 
@@ -86,9 +88,23 @@ def task_wrapper(task_func: Callable) -> Callable:
             if find_spec("wandb"):  # check if wandb is installed
                 import wandb
 
+                # if profiler is `pytorch` - add trace to WandB log
+                profiler = cfg["trainer"].get("profiler")
+                if profiler == "pytorch":
+                    try:  # add execution trace to logged and versioned binaries
+                        print("Logging trace")
+                        trace_matcher = cfg.paths.output_dir + "/*.pt.trace.json"
+                        trace_file = glob.glob(trace_matcher)[0]
+                        trace_at = wandb.Artifact(name=f"trace-{wandb.run.id}", type="trace")
+                        trace_at.add_file(trace_file, name="training_step.pt.trace.json")
+                        wandb.log_artifact(trace_at)
+                    except IndexError:
+                        print("Trace not found")
+
                 if wandb.run:
                     log.info("Closing wandb!")
                     wandb.finish()
+
 
         return metric_dict, object_dict
 

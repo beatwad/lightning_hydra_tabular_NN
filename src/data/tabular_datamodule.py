@@ -40,6 +40,7 @@ class TabularDataModule(L.LightningDataModule):
         val_size: float = 0.2,
         load_dir: str = "",
         num_workers: int = 4,
+        pin_memory: bool = False
     ) -> None:
         super().__init__()
 
@@ -117,7 +118,7 @@ class TabularDataModule(L.LightningDataModule):
             shuffle=True,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            pin_memory=True,
+            pin_memory=self.hparams.pin_memory
         )
 
     def val_dataloader(self):
@@ -126,7 +127,7 @@ class TabularDataModule(L.LightningDataModule):
             shuffle=False,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            pin_memory=True,
+            pin_memory=self.hparams.pin_memory
         )
 
     # def test_dataloader(self):
@@ -135,5 +136,5 @@ class TabularDataModule(L.LightningDataModule):
     #         shuffle=False,
     #         batch_size=self.batch_size,
     #         num_workers=self.num_workers,
-    #         pin_memory=self.on_gpu,
+    #         pin_memory=self.hparams.pin_memory
     #     )

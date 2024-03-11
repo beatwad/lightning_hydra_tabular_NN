@@ -7,6 +7,11 @@ defaults:
 
 trainer:
   max_epochs: 1
-  profiler: "simple"
+  accelerator: gpu
+  # profiler: "simple"
   # profiler: "advanced"
-  # profiler: "pytorch"
+  profiler: "pytorch"
+  enable_checkpointing: False
+
+data:
+  num_workers: 7
